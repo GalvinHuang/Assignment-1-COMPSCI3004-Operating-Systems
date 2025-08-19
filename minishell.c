@@ -7,7 +7,7 @@
    Compiler/System	: gcc/linux
 
 ********************************************************************/
-
+#define _POSIX_C_SOURCE 199309L
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
@@ -15,11 +15,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdbool.h>
+#include <asm-generic/signal-defs.h>
 
 #define NV 20			/* max number of command tokens */
 #define NL 100			/* input buffer size */
 char            line[NL];	/* command input buffer */
-
 
 /*
 	shell prompt
@@ -30,16 +31,14 @@ void prompt(void)
   fflush(stdout);
 }
 
-void sigchild() { 
+void sigchild(int signum) { 
   int status;
   pid_t pid;
   /* waitpid watiing for any background processes (-1)
   With WNOHANG was given, if status information is not available for at least one process (child)
   waitpid() returns a value of 0.
   */
-  while ((pid = waitpid(-1, &status, WNOHANG)) > 0){
-    printf("Terminate: %d", pid);
-  }
+  while ((pid = waitpid(-1, &status, WNOHANG)) > 0){}
 }
 
 /* argk - number of arguments */
@@ -47,13 +46,15 @@ void sigchild() {
 /* envp - environment pointer */
 int main(int argk, char *argv[], char *envp[])
 {
-   int             frkRtnVal;	    /* value returned by fork sys call */
-   int             wpid;		        /* value returned by wait */
+  int             frkRtnVal;	    /* value returned by fork sys call */
+  int             wpid;		        /* value returned by wait */
   char           *v[NV];	        /* array of pointers to command line tokens */
   char           *sep = " \t\n";  /* command line token separators    */
   int             i;		          /* parse index */
+  bool       background = false;  /* boolean to indicate command to be run in background*/
+  int        job_number = 0;      /* arbiturary job number*/
 
-    /* prompt for and process one command line at a time  */
+  /* prompt for and process one command line at a time  */
   
   /* sigaction struct linked to custom sigchild handler
   sigemptyset to specify no other signals are blocked during custom handler
@@ -63,7 +64,7 @@ int main(int argk, char *argv[], char *envp[])
   struct sigaction sigact;
   sigact.sa_handler = sigchild;
   sigemptyset(&sigact.sa_mask);
-  sigact.sa_flags = SA_NOCLDSTOP | SA_RESTART;
+  sigact.sa_flags = SA_RESTART | SA_NOCLDSTOP;
   sigaction(SIGCHLD, &sigact, NULL);
 
   while (1) {			/* do Forever */
@@ -93,8 +94,10 @@ int main(int argk, char *argv[], char *envp[])
     /* assert i is number of tokens + 1 */
 
     /* detect & symbol for background mode */
+    background = false;
     if (strcmp(v[size - 1], "&") == 0) {
       v[size - 1] = '\0';
+      background = true;
     }
 
     /* detect cd command for proper execution */
@@ -130,12 +133,20 @@ int main(int argk, char *argv[], char *envp[])
         }
         default:			/* code executed only by parent process */
         {
-          int status;
-          waitpid(frkRtnVal, &status, WUNTRACED);
-          printf("%s command Exit Code: %d\n", v[0], WEXITSTATUS(status));
-          break;
+          if (background == true){
+            printf("[%d] %d\n", job_number, getpid());
+            job_number++;
+            /*
+            printf("[%d] Done ", job_number);
+            for (i = 0; i < size-1; i++){
+              printf("%s ", v[i]);
+            }
+            printf("\n");
+            */
+          } else {
+            wait(0);
+          }
         }
-
       }				/* switch */
     }      /* else */
   }				/* while */

@@ -4,14 +4,14 @@
 #include <string.h>
 
 // custom function for HUP signal
-void sighup() {
+void sighup(int signum) {
   char *hup_message = "Ouch!";
   write(STDERR_FILENO, hup_message, strlen(hup_message));
   return;
 }
 
 // custom function for INT signal
-void sigint() {
+void sigint(int signum) {
   char *int_message = "Yeah!";
   write(STDERR_FILENO, int_message, strlen(int_message));
   return;
