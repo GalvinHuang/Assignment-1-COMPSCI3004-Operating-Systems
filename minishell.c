@@ -27,11 +27,20 @@ char            line[NL];	/* command input buffer */
 
 void prompt(void)
 {
-  // ## REMOVE THIS 'fprintf' STATEMENT BEFORE SUBMISSION
-  fprintf(stdout, "\n msh> ");
   fflush(stdout);
 }
 
+void sigchild() { 
+  int status;
+  pid_t pid;
+  /* waitpid watiing for any background processes (-1)
+  With WNOHANG was given, if status information is not available for at least one process (child)
+  waitpid() returns a value of 0.
+  */
+  while ((pid = waitpid(-1, &status, WNOHANG)) > 0){
+    printf("Terminate: %d", pid);
+  }
+}
 
 /* argk - number of arguments */
 /* argv - argument vector from command line */
@@ -45,6 +54,17 @@ int main(int argk, char *argv[], char *envp[])
   int             i;		          /* parse index */
 
     /* prompt for and process one command line at a time  */
+  
+  /* sigaction struct linked to custom sigchild handler
+  sigemptyset to specify no other signals are blocked during custom handler
+  SA_NOCLDSTOP to remove stop/pauses, only consider termination.
+  SA_RESTART to restart interrupted library functions.
+  */
+  struct sigaction sigact;
+  sigact.sa_handler = sigchild;
+  sigemptyset(&sigact.sa_mask);
+  sigact.sa_flags = SA_NOCLDSTOP | SA_RESTART;
+  sigaction(SIGCHLD, &sigact, NULL);
 
   while (1) {			/* do Forever */
     prompt();
@@ -74,7 +94,7 @@ int main(int argk, char *argv[], char *envp[])
 
     /* detect & symbol for background mode */
     if (strcmp(v[size - 1], "&") == 0) {
-      printf("Amber Alert!\n");
+      v[size - 1] = '\0';
     }
 
     /* detect cd command for proper execution */
