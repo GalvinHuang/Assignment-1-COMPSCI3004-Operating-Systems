@@ -73,31 +73,36 @@ int main(int argk, char *argv[], char *envp[])
     /* assert i is number of tokens + 1 */
 
     /* detect & symbol for background mode */
-    if (*(v[size - 1]) == '&') {
+    if (strcmp(v[size - 1], "&") == 0) {
       printf("Amber Alert!\n");
     }
 
-     /* detect cd command for proper execution */
-    if (v[0] == "cd"){
-      printf("CDC ALERT!\n");
-    }
+    /* detect cd command for proper execution */
+    if (strcmp(v[0],"cd") == 0){
+      /* change directory command. If returned value != 0, it failed*/
+      if (chdir(v[1]) != 0){
+        perror("cd command failed");
+      }
 
-    /* fork a child process to exec the command in v[0] */
-    switch (frkRtnVal = fork()) {
-      case -1:			/* fork returns error to parent process */
-      {
-	      break;
-      }
-      case 0:			/* code executed only by child process */
-      {
-        execvp(v[0], v);
-      }
-      default:			/* code executed only by parent process */
-      {
-      	wpid = wait(0);
-        printf("%s done \n", v[0]);
-    	  break;
-      }
-    }				/* switch */
+    } else {
+      /* fork a child process to exec the command in v[0] */
+      switch (frkRtnVal = fork()) {
+        case -1:			/* fork returns error to parent process */
+        {
+	        break;
+        }
+        case 0:			/* code executed only by child process */
+        {
+          execvp(v[0], v);
+        }
+        default:			/* code executed only by parent process */
+        {
+      	  wpid = wait(0);
+          printf("%s done \n", v[0]);
+    	    break;
+        }
+
+      }				/* switch */
+    }      /* else */
   }				/* while */
 }				/* main */
