@@ -79,27 +79,41 @@ int main(int argk, char *argv[], char *envp[])
 
     /* detect cd command for proper execution */
     if (strcmp(v[0],"cd") == 0){
-      /* change directory command. If returned value != 0, it failed*/
-      if (chdir(v[1]) != 0){
-        perror("cd command failed");
+      /* change directory command */
+      if (v[1] == NULL){
+        /* Stay in current directory (no specified path) */
+        chdir("~");
+      } else {
+        /* Go to specified directory (specified path)*/
+        if (chdir(v[1]) != 0){
+          perror("cd command ERROR"); // cd perror message
+        }
       }
-
+      
     } else {
       /* fork a child process to exec the command in v[0] */
       switch (frkRtnVal = fork()) {
         case -1:			/* fork returns error to parent process */
         {
-	        break;
+          perror("fork ERROR"); // fork perror message
+          break;
         }
         case 0:			/* code executed only by child process */
         {
           execvp(v[0], v);
+          /* Custom perror message to include command */
+          char error_message[NL + 15];
+          strcat(error_message, v[0]);
+          strcat(error_message," command ERROR");
+          perror(error_message);
+          exit(EXIT_FAILURE);
         }
         default:			/* code executed only by parent process */
         {
-      	  wpid = wait(0);
-          printf("%s done \n", v[0]);
-    	    break;
+          int status;
+          waitpid(frkRtnVal, &status, WUNTRACED);
+          printf("%s command Exit Code: %d\n", v[0], WEXITSTATUS(status));
+          break;
         }
 
       }				/* switch */
