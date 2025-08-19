@@ -25,8 +25,9 @@ char            line[NL];	/* command input buffer */
 	shell prompt
  */
 
-prompt(void)
+void prompt(void)
 {
+  // ## REMOVE THIS 'fprintf' STATEMENT BEFORE SUBMISSION
   fprintf(stdout, "\n msh> ");
   fflush(stdout);
 }
@@ -60,14 +61,26 @@ int main(int argk, char *argv[], char *envp[])
       continue;			/* to prompt */
     }
 
+    int size = 0;
     v[0] = strtok(line, sep);
     for (i = 1; i < NV; i++) {
       v[i] = strtok(NULL, sep);
-      if (v[i] == NULL){
-	      break;
+      size++;
+      if (v[i] == NULL) {
+        break;
       }
     }
     /* assert i is number of tokens + 1 */
+
+    /* detect & symbol for background mode */
+    if (*(v[size - 1]) == '&') {
+      printf("Amber Alert!\n");
+    }
+
+     /* detect cd command for proper execution */
+    if (v[0] == "cd"){
+      printf("CDC ALERT!\n");
+    }
 
     /* fork a child process to exec the command in v[0] */
     switch (frkRtnVal = fork()) {
@@ -77,7 +90,7 @@ int main(int argk, char *argv[], char *envp[])
       }
       case 0:			/* code executed only by child process */
       {
-	      execvp(v[0], v);
+        execvp(v[0], v);
       }
       default:			/* code executed only by parent process */
       {
