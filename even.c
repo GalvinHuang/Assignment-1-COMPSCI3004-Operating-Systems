@@ -1,35 +1,52 @@
+#define _POSIX_SOURCE
 #include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <signal.h>
 
 // custom function for HUP signal
 void sighup(int signum) {
-  char *hup_message = "Ouch!";
+  char *hup_message = "Ouch!\n";
   write(STDERR_FILENO, hup_message, strlen(hup_message));
   return;
 }
 
 // custom function for INT signal
 void sigint(int signum) {
-  char *int_message = "Yeah!";
+  char *int_message = "Yeah!\n";
   write(STDERR_FILENO, int_message, strlen(int_message));
   return;
 }
 
 int main(int argc, char *argv[]) {
-  signal(SIGHUP, sighup);
-  signal(SIGINT, sigint);
-  int n;
+  // initialise sigaction struct.
+  struct sigaction sa_hup, sa_int;
 
-  // convert command input into int
-  if (argc == 2){
-    sscanf(argv[1], "%d", &n);
+  // pointer to custom function.
+  sa_hup.sa_handler = &sighup;
+  sa_int.sa_handler = &sigint;
+
+  // set empty signal mask of calling process.
+  sigemptyset(&(sa_hup.sa_mask));
+  sigemptyset(&(sa_int.sa_mask));
+
+  // change SIGHUP/SIGINT to custom behaviour.
+  sigaction(SIGHUP, &sa_hup, NULL);
+  sigaction(SIGINT, &sa_int, NULL);
+
+  char *endptr;
+
+  if (argc != 2){
+    return -1;
   }
+  
+  // convert command input into long int
+  long int n = strtol(argv[1], &endptr, 10);
 
-  int even = 0;
+  int even;
   // loop printing even numbers "n" times
-  for (int i = 0; i < n; i++) {
+  for (long int i = 0; i < n; i++) {
     printf("%d\n", even);
     even = even + 2;
     sleep(5);
