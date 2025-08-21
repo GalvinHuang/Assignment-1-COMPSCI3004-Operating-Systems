@@ -49,8 +49,9 @@ int main(int argc, char *argv[]) {
   for (long int i = 0; i < n; i++) {
     printf("%d\n", even);
     even = even + 2;
-    sleep(5);
+    if (i < n-1){
+      sleep(5);
+    }
   } 
-
   return 0;
 }
