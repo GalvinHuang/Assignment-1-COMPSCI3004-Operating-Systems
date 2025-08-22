@@ -7,15 +7,13 @@
 
 // custom function for HUP signal
 void sighup(int signum) {
-  char *hup_message = "Ouch!\n";
-  write(STDERR_FILENO, hup_message, strlen(hup_message));
+  write(STDERR_FILENO, "Ouch!\n", 6);
   return;
 }
 
 // custom function for INT signal
 void sigint(int signum) {
-  char *int_message = "Yeah!\n";
-  write(STDERR_FILENO, int_message, strlen(int_message));
+  write(STDERR_FILENO, "Yeah!\n", 6);
   return;
 }
 
@@ -31,6 +29,10 @@ int main(int argc, char *argv[]) {
   sigemptyset(&(sa_hup.sa_mask));
   sigemptyset(&(sa_int.sa_mask));
 
+  // set empty flags.
+  sa_hup.sa_flags = 0;
+  sa_int.sa_flags = 0;
+
   // change SIGHUP/SIGINT to custom behaviour.
   sigaction(SIGHUP, &sa_hup, NULL);
   sigaction(SIGINT, &sa_int, NULL);
@@ -44,7 +46,7 @@ int main(int argc, char *argv[]) {
   // convert command input into long int
   long int n = strtol(argv[1], &endptr, 10);
 
-  int even;
+  int even = 0;
   // loop printing even numbers "n" times
   for (long int i = 0; i < n; i++) {
     printf("%d\n", even);
