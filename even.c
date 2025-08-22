@@ -1,19 +1,19 @@
-#define _POSIX_SOURCE
+#define _POSIX_C_SOURCE 200809L
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>
-
-volatile sig_atomic_t sighup_receive = 0;
-volatile sig_atomic_t sigint_receive = 0;
 
 // custom function for HUP signal
-void sighup(int signum) { sighup_receive = 1; }
+void sighup(int signum) { 
+    write(STDOUT_FILENO, "Ouch!\n", 6);
+}
 
 // custom function for INT signal
-void sigint(int signum) { sigint_receive = 1; }
+void sigint(int signum) { 
+    write(STDOUT_FILENO, "Yeah!\n", 6); 
+}
 
 int main(int argc, char *argv[]) {
   // initialise sigaction struct.
@@ -39,24 +39,14 @@ int main(int argc, char *argv[]) {
 
   // convert command input into long int
   long int n = strtol(argv[1], &endptr, 10);
-
   int even = 0;
-  long int i = 0;
-  char buffer[16];
+
   // loop printing even numbers "n" times
-  while (i < n) {
-    if (sighup_receive) {
-      write(STDERR_FILENO, "Ouch!\n", 6);
-      sighup_receive = 0;
-    } else if (sigint_receive) {
-      write(STDERR_FILENO, "Yeah!\n", 6);
-      sigint_receive = 0;
-    }
-    snprintf(buffer, sizeof(buffer), "%d\n", even);
-    write(STDERR_FILENO, buffer, strlen(buffer));
+  for (long int i = 0; i < n; i++){
+    printf("%d\n", even);
+    fflush(stdout); // Force stdout immediately?
     even = even + 2;
     sleep(5);
-    i++;
   }
   return 0;
 }
