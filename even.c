@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 volatile sig_atomic_t sighup_receive = 0;
 volatile sig_atomic_t sigint_receive = 0;
@@ -54,9 +55,7 @@ int main(int argc, char *argv[]) {
     snprintf(buffer, sizeof(buffer), "%d\n", even);
     write(STDERR_FILENO, buffer, strlen(buffer));
     even = even + 2;
-    if (i < n - 1) {
-      sleep(5);
-    }
+    sleep(5);
     i++;
   }
   return 0;
