@@ -37,6 +37,9 @@ struct BCKProcess {
 struct BCKProcess *background_processes, *temp;
 int buffer_size;
 
+/* global pipe to retrive pid of completed background processes*/
+int pipefd[2];
+
 /* helper function to locate index to 
 struct with command associated with pid 
 */
@@ -97,7 +100,11 @@ void remove_amper(char *string) {
 }
 
 /* shell prompt */
-void prompt(void){fflush(stdout);}
+void prompt(void){
+  // ## REMOVE THIS 'fprintf' STATEMENT BEFORE SUBMISSION
+  fprintf(stdout, "\n msh> ");
+  fflush(stdout);
+}
 
 /* waipid waits for any termination of child background processes (-1)
 if status information for at least one process (child) isn't available,
@@ -115,28 +122,18 @@ void sigchild(int signum) {
       continue;
     }
     
-    /*
+    /* Is caught process background_process?*/
     int index = find_index(pid);
     if (index == -1){
-      char *index_message = "FAILED to locate command with pid. \n";
-      return;
+      continue;
     }
-    */
-
-    /*
-    char done_message[NL + 13];
-    snprintf(done_message, sizeof(done_message), "[%d] Done %s\n",
-             background_processes[index].job_number,
-             background_processes[index].command);
-    */
 
     /* Child process exited normally / by signal */
     if (WIFEXITED(status) == true){
-      char done_message[] = "[#]Done command";
-      write(STDERR_FILENO, done_message, strlen(done_message));
+      write(pipefd[1], &pid, sizeof(pid));
     } else if (WIFSIGNALED(status) == true){
       perror("Child Process Ended by Signal");
-      printf("Signal Value: %d\n", WTERMSIG(status));
+      //printf("Signal Value: %d\n", WTERMSIG(status));
     }
   }
   return;
@@ -154,12 +151,14 @@ int main(int argk, char *argv[], char *envp[])
   bool background = false;  /* boolean to indicate command to be run in background */
   int job_number = 0;       /* arbiturary job number */
 
+  /* Initalise global variables & data structures */
   background_processes = (struct BCKProcess *)malloc(BACK_PROCESS_SIZE * sizeof(struct BCKProcess));
   if (background_processes == NULL) {
     perror("malloc ERROR");
     return -1;
   }
   buffer_size = BACK_PROCESS_SIZE;
+  pipe(pipefd);
 
   /* initialise sigaction to custom sigchild signal handler 
   set empty signal mask of calling process
@@ -176,11 +175,14 @@ int main(int argk, char *argv[], char *envp[])
     prompt();
     fgets(line, NL, stdin);
     fflush(stdin);
-
+    
     strcpy(saved_line, line);
 
     if (feof(stdin)) {		/* non-zero on EOF  */
       //fprintf(stderr, "EOF pid %d feof %d ferror %d\n", getpid(),feof(stdin), ferror(stdin));
+      /* Free memory and close parent pipe */
+      free(background_processes);
+      close(pipefd[0]);
       exit(0);
     }
     if (line[0] == '#' || line[0] == '\n' || line[0] == '\000'){
@@ -205,7 +207,6 @@ int main(int argk, char *argv[], char *envp[])
       remove_amper(saved_line);
       background = true;
     }
-    printf("P2 %s\n", saved_line);
 
     /* detect cd command for proper execution */
     if (strcmp(v[0],"cd") == 0){
@@ -229,6 +230,9 @@ int main(int argk, char *argv[], char *envp[])
         }
         case 0:			/* code executed only by child process */
         {
+          /* Child close read/write end of copy of global SIGCHILD pipe*/
+          close(pipefd[0]);
+          close(pipefd[1]);
           execvp(v[0], v);
           /* Custom perror message to include command */
           char error_message[NL + 15];
@@ -239,13 +243,24 @@ int main(int argk, char *argv[], char *envp[])
         }
         default:			/* code executed only by parent process */
         {
+          /* Parent close write end of pipe */
+          close(pipefd[1]);
           if (background == true){
             job_number = insert_process(frkRtnVal, job_number, saved_line);
           }
-          sleep(60);  
+          /* Print DONE message for all completed background processes (saved pid)*/
+          pid_t pid;
+          while (read(pipefd[0], &pid, sizeof(pid)) > 0) {
+            int index = find_index(pid);
+            if (index != -1){
+              char done_message[NL + 13];
+              snprintf(done_message, sizeof(done_message), "[%d] Done %s\n",
+              background_processes[index].job_number,
+              background_processes[index].command);
+            }
+          }
         }
       }				/* switch */
     }      /* else */
   }				/* while */
-  free(background_processes);
 }				/* main */
