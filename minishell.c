@@ -20,6 +20,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+/* select()*/
+#include <sys/select.h>
+#include <sys/time.h>
+#include <fcntl.h> 
+
 #define NV 20		              /* max number of command tokens */
 #define NL 100	              /* input buffer size */
 #define BACK_PROCESS_SIZE 10  /* size of background process struct array */
@@ -159,6 +164,7 @@ int main(int argk, char *argv[], char *envp[])
   }
   buffer_size = BACK_PROCESS_SIZE;
   pipe(pipefd);
+  fcntl(pipefd[1], F_SETFL, O_NONBLOCK); //Set Non-Blocking I/O with pipes
 
   /* initialise sigaction to custom sigchild signal handler 
   set empty signal mask of calling process
@@ -203,7 +209,7 @@ int main(int argk, char *argv[], char *envp[])
     /* detect & symbol for background mode */
     background = false;
     if (strcmp(v[size - 1], "&") == 0) {
-      v[size - 1] = '\0';
+      v[size - 1] = '\0'; //else [-2]
       remove_amper(saved_line);
       background = true;
     }
@@ -248,19 +254,47 @@ int main(int argk, char *argv[], char *envp[])
           if (background == true){
             job_number = insert_process(frkRtnVal, job_number, saved_line);
           }
-          /* Print DONE message for all completed background processes (saved pid)*/
+          bool fg_active = true;
+          int fg_status;
           pid_t pid;
-          while (read(pipefd[0], &pid, sizeof(pid)) > 0) {
-            int index = find_index(pid);
-            if (index != -1){
-              char done_message[NL + 13];
-              snprintf(done_message, sizeof(done_message), "[%d] Done %s\n",
-              background_processes[index].job_number,
-              background_processes[index].command);
+
+          while(fg_active){
+            fd_set readfd; // Initilise bit set
+            FD_ZERO(&readfd);  // EMPTY bit set
+            FD_SET(pipefd[0], &readfd); // Have pipe within bit set
+            /* For select(). Make pipe read-end max fd examined. Only pipefd present.*/
+            int maxfd = pipefd[0];
+
+            /* second, microsecond struct */
+            struct timeval tv = {0, 100000}; // Set timeout for completed pid to 0.1seconds
+            /* nfds is max + 1 integer value,
+            readfds: bit set of descriptors for reading,
+            NULL for write and except,
+            timeout
+            */
+            int rc = select(maxfd + 1, &readfd, NULL, NULL, &tv);
+            /* return value > 0 indicates ready sockets. macro FD_ISSET() with socket to test pipefd is ready (1).
+            More standard for multi-fd bit sets.
+            */
+            if (rc > 0 && FD_ISSET(pipefd[0], &readfd)) {
+              while (read(pipefd[0], &pid, sizeof(pid)) > 0) {
+                int index = find_index(pid);
+                if (index != -1){
+                  char done_message[NL + 13];
+                  /* Print DONE message for all completed background processes (saved pid)*/
+                  snprintf(done_message, sizeof(done_message), "[%d] Done %s\n", background_processes[index].job_number, background_processes[index].command);
+                }
+              }
             }
-          }
-        }
-      }				/* switch */
+            /* check forground process is completed */
+            pid_t w = waitpid(frkRtnVal, &fg_status, WNOHANG);
+            /* Success returns pid. Else, keep while-loop active. */
+            if (w == frkRtnVal ) {
+              fg_active = false;
+            }
+          }      /* parent while */
+        }      /* default*/
+      }			 /* switch */
     }      /* else */
   }				/* while */
 }				/* main */
