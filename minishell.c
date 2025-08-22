@@ -8,16 +8,17 @@
 
 ********************************************************************/
 #define _POSIX_SOURCE
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <asm-generic/signal-defs.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
+#include <ctype.h>
+#include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
-#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #define NV 20		              /* max number of command tokens */
 #define NL 100	              /* input buffer size */
@@ -34,13 +35,13 @@ struct BCKProcess {
 
 /* global array of background structs */
 struct BCKProcess *background_processes, *temp;
-int size;
+int buffer_size;
 
 /* helper function to locate index to 
 struct with command associated with pid 
 */
 int find_index(int pid) { 
-  for (int i = 0; i < size; i++){
+  for (int i = 0; i < buffer_size; i++){
     if (background_processes[i].pid == pid){
       return i;
     }
@@ -49,16 +50,50 @@ int find_index(int pid) {
 }
 
 /* helper function to resize background struct */
-int resize_BCKProcess(int job) {
-  temp = realloc(background_processes, size * 2);
+int resize_BCKProcess() {
+  temp = realloc(background_processes, buffer_size * 2);
   if (temp != NULL){
     background_processes = temp;
-    size = size * 2;
+    buffer_size = buffer_size * 2;
   } else {
     perror("realloc ERROR");
     return -1;
     }
   return 0;
+}
+
+/* helper function to record background process */
+int insert_process(int fork, int job, char *line){
+  printf("[%d] %d\n", job, fork);
+  background_processes[job].pid = fork;
+  background_processes[job].job_number = job;
+  background_processes[job].command = line;
+  int update_job = job + 1;
+  if (update_job == buffer_size) {
+    if (resize_BCKProcess() == -1) {
+      return -1;
+    }
+  }
+  return update_job;
+}
+
+/* helper function to remove background & and surrounding whitespace */
+void remove_amper(char *string) {
+  size_t n = strlen(string);
+  ssize_t i = (ssize_t)n - 1;
+
+  while (i >= 0 && isspace((unsigned char)string[i])) {
+    string[i] = '\0';
+    i--;
+  }
+  if (i >= 0 && string[i] == '&') {
+    string[i] = '\0';
+    i--;
+  }
+  while (i >= 0 && isspace((unsigned char)string[i])) {
+    string[i] = '\0';
+    i--;
+  }
 }
 
 /* shell prompt */
@@ -80,24 +115,24 @@ void sigchild(int signum) {
       continue;
     }
     
+    /*
     int index = find_index(pid);
     if (index == -1){
       char *index_message = "FAILED to locate command with pid. \n";
       return;
     }
+    */
 
+    /*
     char done_message[NL + 13];
-    done_message[0] = '[';
-    done_message[1] = '\0';
-    char job[16];
-
-    snprintf(job, sizeof(job), "%d", background_processes[index].job_number);
-    strcat(done_message, "] Done ");
-    strcat(done_message, background_processes[index].command);
-    strcat(done_message, "\n");
+    snprintf(done_message, sizeof(done_message), "[%d] Done %s\n",
+             background_processes[index].job_number,
+             background_processes[index].command);
+    */
 
     /* Child process exited normally / by signal */
     if (WIFEXITED(status) == true){
+      char done_message[] = "[#]Done command";
       write(STDERR_FILENO, done_message, strlen(done_message));
     } else if (WIFSIGNALED(status) == true){
       perror("Child Process Ended by Signal");
@@ -124,7 +159,7 @@ int main(int argk, char *argv[], char *envp[])
     perror("malloc ERROR");
     return -1;
   }
-  size = BACK_PROCESS_SIZE;
+  buffer_size = BACK_PROCESS_SIZE;
 
   /* initialise sigaction to custom sigchild signal handler 
   set empty signal mask of calling process
@@ -134,12 +169,15 @@ int main(int argk, char *argv[], char *envp[])
   sigact_child.sa_handler = &sigchild;
   sigemptyset(&(sigact_child.sa_mask));
   sigact_child.sa_flags = SA_NOCLDSTOP;
+  sigaction(SIGCHLD, &sigact_child, NULL);
 
   while (1) {			/* do Forever */
-    sigaction(SIGCHLD, &sigact_child, NULL);
+    char saved_line[NL]; /* Saved line */
     prompt();
     fgets(line, NL, stdin);
     fflush(stdin);
+
+    strcpy(saved_line, line);
 
     if (feof(stdin)) {		/* non-zero on EOF  */
       //fprintf(stderr, "EOF pid %d feof %d ferror %d\n", getpid(),feof(stdin), ferror(stdin));
@@ -164,14 +202,10 @@ int main(int argk, char *argv[], char *envp[])
     background = false;
     if (strcmp(v[size - 1], "&") == 0) {
       v[size - 1] = '\0';
-      size--;
+      remove_amper(saved_line);
       background = true;
     }
-
-    for (i = 0; i < size; i++){
-      printf("WHY %s\n", v[i]);
-    } 
-
+    printf("P2 %s\n", saved_line);
 
     /* detect cd command for proper execution */
     if (strcmp(v[0],"cd") == 0){
@@ -206,21 +240,9 @@ int main(int argk, char *argv[], char *envp[])
         default:			/* code executed only by parent process */
         {
           if (background == true){
-            printf("[%d] %d\n", job_number, frkRtnVal);
-            background_processes[job_number].pid = frkRtnVal;
-            background_processes[job_number].job_number = job_number;
-            background_processes[job_number].command = line;
-            job_number++;
-            if (job_number == size){
-              if (resize_BCKProcess(job_number) == -1){
-                return -1;
-              }
-            }
-            break;
-          } else {
-            wait(0);
-            break;
+            job_number = insert_process(frkRtnVal, job_number, saved_line);
           }
+          sleep(60);  
         }
       }				/* switch */
     }      /* else */
