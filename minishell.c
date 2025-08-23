@@ -113,9 +113,7 @@ int main(int argk, char *argv[], char *envp[])
     fflush(stdin);
 
     if (feof(stdin)) {		/* non-zero on EOF  */
-
-      fprintf(stderr, "EOF pid %d feof %d ferror %d\n", getpid(),
-	      feof(stdin), ferror(stdin));
+      //fprintf(stderr, "EOF pid %d feof %d ferror %d\n", getpid(),feof(stdin), ferror(stdin));
       exit(0);
     }
     if (line[0] == '#' || line[0] == '\n' || line[0] == '\000'){
