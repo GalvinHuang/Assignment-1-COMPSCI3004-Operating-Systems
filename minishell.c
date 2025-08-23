@@ -31,6 +31,31 @@ void prompt(void)
   fflush(stdout);
 }
 
+/* helper function to proces cd command*/
+void process_cd(char *token[], int size) {
+  if (token[1] == NULL || strcmp(token[1], "~") == 0 || strcmp(token[1], "$HOME") == 0) {
+    /* proceed to home directory (cd , cd ~, cd $HOME) */
+    if (chdir(getenv("HOME")) !=0){
+      perror("cd $HOME ERROR");
+    }
+  } else if (token[1][0] == '~') {
+    /* proceed to home directory + PATH*/
+    if (chdir(getenv("HOME")) !=0){
+      perror("cd $HOME ERROR");
+    }
+    memmove(token[1], token[1] + 1, strlen(token[1]) + 1 - 1); // Remove ~/
+    if (chdir(token[1]) !=0){
+      perror("cd ERROR");
+    }
+  } else {
+    /* proceess directory */
+    if (chdir(token[1]) !=0){
+      perror("cd ERROR");
+    }
+  }
+  return;
+}
+
 void sigchild(int signum) { 
   int status;
   pid_t pid;
@@ -82,37 +107,27 @@ int main(int argk, char *argv[], char *envp[])
       continue;			/* to prompt */
     }
 
-    int size = 0;
+    int size = 1;
     v[0] = strtok(line, sep);
     for (i = 1; i < NV; i++) {
       v[i] = strtok(NULL, sep);
-      size++;
       if (v[i] == NULL) {
         break;
       }
+      size++;
     }
     /* assert i is number of tokens + 1 */
 
     /* detect & symbol for background mode */
     background = false;
     if (strcmp(v[size - 1], "&") == 0) {
-      v[size - 1] = '\0';
+      v[size - 1] = NULL;
       background = true;
     }
 
     /* detect cd command for proper execution */
     if (strcmp(v[0],"cd") == 0){
-      /* change directory command */
-      if (v[1] == NULL){
-        /* Stay in current directory (no specified path) */
-        chdir("~");
-      } else {
-        /* Go to specified directory (specified path)*/
-        if (chdir(v[1]) != 0){
-          perror("cd command ERROR"); // cd perror message
-        }
-      }
-      
+      process_cd(v, size);
     } else {
       /* fork a child process to exec the command in v[0] */
       switch (frkRtnVal = fork()) {
@@ -136,13 +151,6 @@ int main(int argk, char *argv[], char *envp[])
           if (background == true){
             printf("[%d] %d\n", job_number, getpid());
             job_number++;
-            /*
-            printf("[%d] Done ", job_number);
-            for (i = 0; i < size-1; i++){
-              printf("%s ", v[i]);
-            }
-            printf("\n");
-            */
           } else {
             wait(0);
           }
