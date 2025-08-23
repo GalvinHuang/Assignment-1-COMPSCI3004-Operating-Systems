@@ -190,7 +190,7 @@ int main(int argk, char *argv[], char *envp[]) {
   struct sigaction sigact_child;
   sigact_child.sa_handler = &sigchild;
   sigemptyset(&(sigact_child.sa_mask));
-  sigact_child.sa_flags = SA_NOCLDSTOP;
+  sigact_child.sa_flags = SA_RESTART | SA_NOCLDSTOP;
   sigaction(SIGCHLD, &sigact_child, NULL);
 
   while (1) { /* do Forever */
