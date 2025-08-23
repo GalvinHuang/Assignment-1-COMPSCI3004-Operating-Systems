@@ -33,6 +33,7 @@ void prompt(void)
 
 /* helper function to proces cd command*/
 void process_cd(char *token[], int size) {
+  int length = strlen(token[1]);
   if (token[1] == NULL || strcmp(token[1], "~") == 0 || strcmp(token[1], "$HOME") == 0) {
     /* proceed to home directory (cd , cd ~, cd $HOME) */
     if (chdir(getenv("HOME")) !=0){
@@ -43,10 +44,24 @@ void process_cd(char *token[], int size) {
     if (chdir(getenv("HOME")) !=0){
       perror("cd $HOME ERROR");
     }
-    memmove(token[1], token[1] + 1, strlen(token[1]) + 1 - 1); // Remove ~/
+    memmove(token[1], token[1] + 2, strlen(token[1]) + 2 - 1); // Remove ~/
+    printf("New Directory %s\n", token[1]);
     if (chdir(token[1]) !=0){
       perror("cd ERROR");
     }
+  } else if ((token[1][0] == '\'' && token[1][length - 1] == '\'') ||
+             (token[1][0] == '"' && token[1][length - 1] == '"')) {
+    char *pathway = malloc(length - 1 * sizeof(char));
+    if (pathway == NULL) {
+      perror("malloc ERROR");
+      return;
+    }
+    strncpy(pathway, token[1] + 1, length - 2);
+    pathway[length - 2] = '\0';
+    if (chdir(pathway) != 0) {
+      perror("cd ERROR");
+    }
+    free(pathway);
   } else {
     /* proceess directory */
     if (chdir(token[1]) !=0){
