@@ -120,6 +120,7 @@ void process_cd(char *token[], int size) {
       perror("malloc ERROR");
       return;
     }
+    /* Remove outer single/double quotations from pathway*/
     strncpy(pathway, token[1] + 1, length - 2);
     pathway[length - 2] = '\0';
     if (chdir(pathway) != 0) {
@@ -248,9 +249,13 @@ int main(int argk, char *argv[], char *envp[]) {
         }
         default: /* code executed only by parent process */
         {
+          /* Add background process to process array, update job number
+          and immediately proceed to next command
+          */
           if (background == true) {
             job_number = insert_process(frkRtnVal, job_number, saved_line);
           } else {
+            /* wait for current foreground process to complete*/
             int status;
             waitpid(frkRtnVal, &status, 0);
           }

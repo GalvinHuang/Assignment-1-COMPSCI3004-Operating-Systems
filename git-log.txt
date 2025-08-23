@@ -1,0 +1,380 @@
+commit fe04e3f19e4e9302281490f95f711dfa25254017
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 13:35:18 2025 +0930
+
+    v2.0.2 Fix Terminal Formatting
+        Quick fix to have
+        - job counter start at 1 (Per Assessment Page) but busted by Piazza Response
+        - Add + sign to Done Message
+    
+    Ongoing Issue:
+        The + signal shoudl technically only apply to the most recent process to the background (or most recent back into foreground)
+        Currently the + is printed with ALL done messages because current code creates static DONE message
+        with no mechanism to alter static message if there is more background processes ongoing.
+
+commit e08c6db68d7250e2c5404229733a893977c37606
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 13:23:20 2025 +0930
+
+    v2.0.1 sigaction SA_RESTART flag
+    Identified Bug:
+    When multiple background sleep processes are queued, the shortest sleep process (regardless of order) finishes first as normal.
+    Subsquent background processes fail because sleep is missing its operands.
+    The subsequent background sleep DONE messages never prints
+    
+    Number of sleep operand errors is connected with number of queued sleep processes.
+        - 2 Error messages for 1 failed sleep processes
+        - 3 Error messages for 2 failed sleep processes
+        - 4 Error messages for 3 failed sleep processes ..etc
+    
+    Fix:
+        During a past git version, SA_RESTART flag was removed from sigaction. Adding it back solves the identified bug.
+        SA_RESTART tells the system to restart certain library functions if they should be interrupted by a signal,
+        one of which being fflush, found in the prompt() function.
+    
+        Instead of fflush() waiting for additional input, its interrupted and causes the while loop to proceed.
+        Code appears to reuse the line variable which transformed into sleep following strtok.
+        Hence the sleep no operators error.
+    
+    Ongoing Issues;
+        Testing has utilised external sleep functions outside of minishell to allow background processes to finish.
+    
+        Example Command;
+        (echo echo 1;echo 'sleep 3 &';echo echo 2;echo 'sleep 5 &';sleep 7; echo 'sleep 5 &'; echo echo 3;echo echo 4) | ./minishell
+    
+        minishell command before external sleep 7 proceeds as normal. However, subsequent commands after external sleep
+        isn't even started until the external sleep 7 completes. Then the code proceeds as normal.
+
+commit afc9e787d84c73dc81265c009451d0a851cfadfc
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 12:46:38 2025 +0930
+
+    v2.0.0 minishell
+    Reintroduced background process buffer from past versions with some changes;
+    BCKProcess struct to store information on background processes
+        - BCKProcess struct now include command array to store DONE message
+        - BCKProcess struct now include DONE message length
+    
+    insert_process function which inserts background process to BCKProcess array
+        - Custom "Done" message now formulated within insert_process
+        - "Done" message and its corresponding length stored in updated BCKProcess struct.
+    Method allows chidl signal handler to write(STDOUT) without calling non-async-safe functions
+    Method *currently also avoids creating DONE message in parent process, which
+        - *currently eliminates need for child signal handler to pipe pid to parent
+        - *currently eliminates need for parent to check pipe and create DONE message
+        - *currently eliminates need for parent multi-tasking and therefore select()
+    
+    sigchild child signal handler now writes DONE message, not write pid to pipe.
+    
+    Context:
+    New code bases pasic functionality test but fails in specific circumstances.
+    Specifically, code continues to have longstanding issue of looping on incomplete commands and therefore printing error messages.
+
+commit d13bfb88486495c81e5d3689379389b59cb70167
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 11:36:41 2025 +0930
+
+    v1.1.0
+
+commit acea659689f260745c33a69353b5583d2ce812ca
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 11:30:20 2025 +0930
+
+    v1.0.1a cd command
+        Removed fprintf()
+
+commit ded566841408b177f0105ce5c715dd1afc49acd1
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 11:28:19 2025 +0930
+
+    v1.0.1 cd command
+        Changes:
+            - Added simple removal of outer single/double quotation
+    
+        Bug Fixes;
+            - Fixed OFFSET for cd command ~/
+
+commit a3d43290ce70fc13ce142ec2aba86df3efb2d5e4
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 10:56:28 2025 +0930
+
+    v1.0.0 minishell & cd command
+        Context:
+        minishell was developed haphazardly with little planning and modular testing.
+        minishell has been reset to old version to fix long outstanding issues;
+    
+        cd command:
+        Previous version of cd command was a placeholder. Added process_cd function which;
+        - Now correctly chdir() to home directory if cd argument is NULL, ~, $HOME
+        - Removes ~/ for pathways starting from home directory.
+    
+        Function doesn't process all test-cases. Its missing single/double quotation and dash.
+    
+        Bug Fixes;
+            - Modified v array size counter
+            - Modified & removal by setting pointer to NULL instead of char.
+
+commit af29e343d967fd571af6b3adaad24af1a5d9e543
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 09:00:10 2025 +0930
+
+    v0.5.4 even.c
+        Made changes which coudl allevaiate hidden issues
+        - Changed stderr to stdout
+        - Replaced outdated POSIX-Source
+    
+        Thinking:
+        I'm thinking maybe I should add SA_RESTART for sleep() so sleep(5) when interrupted doesn't get skipped?
+        Basic comprimise of previous nanosleep() idea to keep sleep active?
+        Its unclear why this code is fail
+
+commit ef25a9272040870efa0778861ba9f22f39f44348
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 08:26:52 2025 +0930
+
+    v0.5.3c even.c
+        Readded Last print after last digit is printed
+
+commit efd49c047c56bb709501c7d12a743f2cac455c7e
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 08:18:39 2025 +0930
+
+    v0.5.3b even.c
+        Added forgotten signal reset
+    
+        Considerations;
+        - nanosleep() to reset sleep?
+
+commit 98fd0daa39261a146c3d7f354f254d762370886f
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 08:07:54 2025 +0930
+
+    v0.5.3-exp even.c
+        Experimental edition of even.c
+
+commit 082a02f64b46c7b9df8abce863aabf716a2702e0
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 07:51:48 2025 +0930
+
+    v0.5.2a even.c
+        Readded Sleep after last digit
+
+commit ae3031c0342af8932fbeaab0cd5bb523b16f0a92
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Sat Aug 23 07:44:55 2025 +0930
+
+    v0.5.2 even.c
+        Removed strlen() to constant size
+        Minor changes to avoid undefined behaviour
+
+commit 8d8b3a7b31cb1211d9dd75e532cb447dc0e88e23
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Fri Aug 22 14:40:10 2025 +0930
+
+    v0.6.3-beta minishell.c
+        Context:
+        It appears the current challenge is writing the parent to both wait for the completition of the current forground process AND
+        read pipe for completed background process PIDS.
+    
+        For multiplex I/O, suggested functions include select() and poll().
+        Following versions experiment/test select()
+    
+        Undiagnosed Issues:
+        - Code currently doesn't print done messages.
+        - Background processes may not finish without active foreground processes
+
+commit d1f27ebc70eae5ec03a228c76ada6bd79800c5f9
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Fri Aug 22 13:10:05 2025 +0930
+
+    v0.6.2 minishell.c
+        Context:
+        Current waitpid setting is picking up on all processes, including foreground and background processes.
+    
+        The primary issue is current code doesn't let parent to proceed until the waitpid is complete.
+        THe other primary issue is to take out the DONE message from the signal handler.
+    
+        First step is to remove sleep() which causes terminal to constantly print.
+        Next step is to access pid from signal handler and have main loop print the DONE message.
+    
+        Initial idea was a queue data structure but its not async-safe (Assume handler adds to queue while main removing from queue)
+        Hence, version 0.6.2 attempts directly piping to main loop which eliminates the need for a queue.
+    
+        Changes:
+        - Removed all terminal print from signal handler to while loop in parent.
+        - Signal now write pids and pipes it to be read by parent.
+        - Parent in while loop process all pids and prints corresponding print message, else continues with foreground commands
+    
+        Bugs
+        New version of minishell has a major bug.
+        Older versions of minicode retain functionality by stopping itself and waiting for input.
+        Current version (time of writing) doesn't flush stdin correctly (assumed issue) which causes it to keep looping over incomplete
+        subsections of the original command without interruption;
+    
+        Older Versions
+        msh > echo test1
+        Line: echo test1 // Debugging
+        temp 1
+    
+        New Version
+        msh > echo test1
+        msh > test1
+        Line: echo // Debugging
+        msh >
+        Line: echo // Debugging
+        msh >
+    
+        The error seem to arise due to a couple of issues and the next update will attempt to resolve it.
+
+commit 98396333ed853936749055fe8390eb77d64d924d
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Fri Aug 22 10:22:17 2025 +0930
+
+    v0.6.1 minishell.c
+        Changes:
+        - Primary hotfix for repeated while loop when processing commands
+
+commit 7f9d00cce9c402698ef411403db113256aa780de
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Thu Aug 21 15:34:23 2025 +0930
+
+    v0.6.0 minishell.c
+        Major:
+        - Added global struct array to retain command for DONE message
+        - Added helper functions;
+            - find_index locates index within struct array for a given pid
+            - resize_BCKProcess helps reallocate the dynamic background array once filled
+        - Updated child signal handler to print DONE message.
+    
+        Minor:
+        - Manual cleanup of code comments & formatting.
+    
+        Context:
+        At the moment, waitpid() appears to be interrupted by other signals which break functionality.
+    
+        - Removed SA_RESTART since it appears to cause unintentional resets, preventing child signal handler from picking up background processes.
+        - Added errno == EINTR check to allow waitpid() to continue to prevent "Interrupted with system call"
+    
+        Future Changes;
+        This code is still heavily flawed since it relies on printing the DONE message through the signal handler.
+        The functions use is not async-safe.
+        Likely need to institute another global array to store pids, then have main function read out the message.
+
+commit c4078dfb0f2f2e531e181daeabaff8e9374bc8bf
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Thu Aug 21 11:47:41 2025 +0930
+
+    v0.5.1b Changes to even.c
+        Changes:
+        - Terminated even.c process after the final even number is printed. Previously, it went through one additional sleep cycle.
+
+commit 2ef71b9f855b3b64240a6f8cc39737c78c86f803
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Thu Aug 21 11:37:24 2025 +0930
+
+    v0.5.1 Changes to even.c
+        Changes:
+        - Updated signal() to sigaction() which has superceded signal.
+        - Updated sscanf() to strtol() (Piazza Q25)
+        - Added newline to custom message.
+    
+        Context:
+        Its currently unclear what the issue with even.c is. Piazza have many incidents of code working on local systems but failing on autograder.
+    
+        The main suspect is signal(). When a signal handler is called, its corresponding signal action is set to default SIG_DFL.
+        That means the signal action need to be reset to handle the same signal. Without a reset, the default aciton is taken on subsequent exceptions.
+    
+        Piazza Q25 mentioned issues with scanf(), so replaced similar sscanf() with strtol()
+
+commit 286237904f86939a6f4ae80b4a5d96220a9c2a56
+Author: GalvinHuang <140358290+GalvinHuang@users.noreply.github.com>
+Date:   Tue Aug 19 17:36:58 2025 +0930
+
+    v0.4.2X
+
+commit 666a153e99213136ab3d8326cb0ab8698bb546ed
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 19 17:21:00 2025 +0930
+
+    v0.4.2b Background Processes
+        Small changes for setup.
+
+commit e0ec8b49b12641306e8594f6a04b54482ad883ad
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 19 15:37:03 2025 +0930
+
+    v0.4.2a Background Processes
+        Removed & symbol if detected.
+    
+        Added custom sigchild function which;
+        - accepts all child prcocess (regardless of Process ID)
+        - loop waitpid functions until no background processes left (WNOHANG)
+    
+        Experimenting with sigaction (over signal)
+        - sigemptyset to specify no other signals are blocked during custom handler
+        - SA_NOCLDSTOP to remove stop/pauses, only consider termination.
+        - SA_RESTART to restart library functions interrupted by signals
+
+commit 2a9979dc4da18f6c198e11001838413af1ae4ee3
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 19 13:29:13 2025 +0930
+
+    v0.4.4 perror Statements
+        Changes:
+        Added additional if statement to account for cd command without specified path.
+        Code now to stay in active directory instead of triggering perror
+    
+        Added custom perror statement for if execvp system call fails to include relevant command.
+
+commit d0403705595989b9b7d0bab69dc9d79e60f4e521
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 19 11:56:00 2025 +0930
+
+    v0.4.3 cd command Context
+        Changes:
+        Explicit system call chdir() to change directory.
+        Fixed basic template for & / cd comparison logic.
+    
+        Context:
+        Each process is independent and operates in its own enviornment.
+        Changes made by the child process to its own enviornment (i.e. directory) are confined to child environment.
+        Hence, cd command in the child process doesn't change the parent shell's directory.
+        cd command must be executed directly.
+
+commit f80ecd7c264cec2048ce10a1bdbfd891dae5938f
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 19 11:06:34 2025 +0930
+
+    v0.4.1 Simple Pickup
+        Added two simple functions to pick up on '&' symbol and "cd" command.
+
+commit 60bfa3cc15b293232c3996b14b2ffaa39cbf2ac1
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 12 17:11:20 2025 +0930
+
+    v0.3 Task 1: Signals
+        Replace printf() functions to write() since printf cannot be called safely
+        from within a signal handler without possible causing unsafe behaviour
+        (async-signal-safe)
+
+commit 444e71a8259dd7b249fdf857d6412a1778462546
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 12 16:31:19 2025 +0930
+
+    v0.2 Task 1: Signals
+        Added custom signal HUP/INT print responses as specified
+
+commit a60ef52c681e50f83c8d2194a5b0426ff8bb4ebe
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 12 16:24:32 2025 +0930
+
+    v0.1 Task 1: Signals
+        Simple program to take the input parameter n from command line,
+        and prints the first "n" even numbers"
+        Program sleep for 5 seconds following each print.
+
+commit 5d332d950c9f6895266905535ec91ba674dd74a6
+Author: galvinhuang <galvin.huang@student.adelaide.edu.au>
+Date:   Tue Aug 12 16:00:17 2025 +0930
+
+    v0.0 Initial Setup
