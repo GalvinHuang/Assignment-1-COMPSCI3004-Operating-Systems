@@ -61,7 +61,7 @@ int insert_process(int fork, int job, char *line) {
 
   /* create custom DONE message */
   snprintf(bg_processes[job].command, sizeof(bg_processes[job].command),
-           "[%d] Done %s\n", job, line);
+           "[%d]+ Done %s\n", job, line);
   bg_processes[job].message_size = strlen(bg_processes[job].command);
   int update_job = job + 1;
   if (update_job == buffer_size) {
@@ -173,7 +173,7 @@ int main(int argk, char *argv[], char *envp[]) {
   char *sep = " \t\n";     /* command line token separators    */
   int i;                   /* parse index */
   bool background = false; /* boolean to indicate command to be run in background*/
-  int job_number = 0;      /* arbiturary job number*/
+  int job_number = 1;      /* arbiturary job number*/
 
   /* Initalise global variables & data structures */
   bg_processes = (struct BCKProcess *)malloc(BACK_PROCESS_SIZE * sizeof(struct BCKProcess));
