@@ -1,5 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include <asm-generic/signal-defs.h>
+#include <ctype.h>
+#include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -11,7 +13,83 @@
 
 #define NV 20  /* max number of command tokens */
 #define NL 100 /* input buffer size */
+#define BACK_PROCESS_SIZE 10 /* size of background process struct array */
 char line[NL]; /* command input buffer */
+
+/* global background processes*/
+struct BCKProcess {
+  int pid;
+  int job_number;
+  char command[NL];
+  int message_size;
+};
+
+/* global array of background structs */
+struct BCKProcess *bg_processes, *temp;
+int buffer_size;
+
+/* helper function to locate index to 
+struct with command associated with pid 
+*/
+int find_index(int pid) {
+  for (int i = 0; i < buffer_size; i++) {
+    if (bg_processes[i].pid == pid) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* helper function to resize background struct */
+int resize_BCKProcess() {
+  temp = realloc(bg_processes, buffer_size * 2);
+  if (temp != NULL) {
+    bg_processes = temp;
+    buffer_size = buffer_size * 2;
+  } else {
+    perror("realloc ERROR");
+    return -1;
+  }
+  return 0;
+}
+
+/* helper function to store background process information */
+int insert_process(int fork, int job, char *line) {
+  printf("[%d] %d\n", job, fork);
+  bg_processes[job].pid = fork;
+  bg_processes[job].job_number = job;
+
+  /* create custom DONE message */
+  snprintf(bg_processes[job].command, sizeof(bg_processes[job].command),
+           "[%d] Done %s\n", job, line);
+  bg_processes[job].message_size = strlen(bg_processes[job].command);
+  int update_job = job + 1;
+  if (update_job == buffer_size) {
+    if (resize_BCKProcess() == -1) {
+      return -1;
+    }
+  }
+  return update_job;
+}
+
+/* helper function to remove background & and surrounding whitespace */
+void remove_amper(char *string) {
+  size_t n = strlen(string);
+  ssize_t i = (ssize_t)n - 1;
+
+  while (i >= 0 && isspace((unsigned char)string[i])) {
+    string[i] = '\0';
+    i--;
+  }
+  if (i >= 0 && string[i] == '&') {
+    string[i] = '\0';
+    i--;
+  }
+  while (i >= 0 && isspace((unsigned char)string[i])) {
+    string[i] = '\0';
+    i--;
+  }
+}
 
 /* shell prompt */
 void prompt(void) { fflush(stdout); }
@@ -65,6 +143,24 @@ void sigchild(int signum) {
   int status;
   pid_t pid;
   while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    /* Instruct waitpid to continue when "Interrupted with system call" */
+    if (errno == EINTR){
+      continue;
+    }
+
+    /* Is caught process background_process?*/
+    int index = find_index(pid);
+    if (index == -1){
+      continue;
+    }
+
+    /* Child process exited normally or by signal */
+    if (WIFEXITED(status) == true){
+      /* write DONE message */
+      write(STDOUT_FILENO, bg_processes[index].command, bg_processes[index].message_size);
+    } else if (WIFSIGNALED(status) == true){
+      perror("Child Process Ended by Signal");
+    }
   }
 }
 
@@ -79,6 +175,14 @@ int main(int argk, char *argv[], char *envp[]) {
   bool background = false; /* boolean to indicate command to be run in background*/
   int job_number = 0;      /* arbiturary job number*/
 
+  /* Initalise global variables & data structures */
+  bg_processes = (struct BCKProcess *)malloc(BACK_PROCESS_SIZE * sizeof(struct BCKProcess));
+  if (bg_processes == NULL) {
+    perror("malloc ERROR");
+    return -1;
+  }
+  buffer_size = BACK_PROCESS_SIZE;
+
   /* initialise sigaction to custom sigchild signal handler 
   set empty signal mask of calling process
   SA_NOCLDSTOP to remove stop/pauses, only consider termination (SIGCHLD)
@@ -90,9 +194,11 @@ int main(int argk, char *argv[], char *envp[]) {
   sigaction(SIGCHLD, &sigact_child, NULL);
 
   while (1) { /* do Forever */
+    char saved_line[NL];
     prompt();
     fgets(line, NL, stdin);
     fflush(stdin);
+    strcpy(saved_line, line);
 
     if (feof(stdin)) { /* non-zero on EOF  */
       exit(0);
@@ -115,6 +221,7 @@ int main(int argk, char *argv[], char *envp[]) {
     background = false;
     if (strcmp(v[size - 1], "&") == 0) {
       v[size - 1] = NULL;
+      remove_amper(saved_line);
       background = true;
     }
 
@@ -142,10 +249,10 @@ int main(int argk, char *argv[], char *envp[]) {
         default: /* code executed only by parent process */
         {
           if (background == true) {
-            printf("[%d] %d\n", job_number, getpid());
-            job_number++;
+            job_number = insert_process(frkRtnVal, job_number, saved_line);
           } else {
-            wait(0);
+            int status;
+            waitpid(frkRtnVal, &status, 0);
           }
         }
       } /* switch */
